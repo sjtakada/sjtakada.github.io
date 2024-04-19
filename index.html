@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Long Project</title>
+    <script src="./libs/d3.v7.js"></script>
+    <script src="https://unpkg.com/d3-simple-slider"></script>
+    <script src="https://unpkg.com/topojson@3"></script>
+    <style>
+        svg {
+            width: 100vw;
+            height: 100vh;
+            margin: auto;
+        }
+        #caption {
+            margin: auto;
+            padding-top: 1%;
+            padding-bottom: 1%;
+            padding-left: 4%;
+            font-family: serif;
+            font-size: 28pt;
+        }
+        #toolTipSvg {
+            width: 200px;
+            height: 150px;
+        }
+        #tooltip {
+            opacity: 0;
+            background-color: antiquewhite;
+            position: absolute;
+            width: 200px;
+            height: 150px;
+        }
+        #map_container {
+            width: 90vw;
+            height: 80vh;
+        }
+        #canvas {
+            width: 98vw;
+            height: 80vh;
+            background-color: azure;
+        }
+        #slider_container {
+            width: 90vw;
+            height: 80vh;
+            align-content: space-evenly;
+        }
+        #slider {
+            width: 100vw;
+            height: 100vh;
+            margin-left: 50px;
+            background-color: white;
+        }
+        path {
+            stroke-width: .5px;
+            stroke: black;
+            fill-opacity: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="caption">
+        World Wine Consumption per Capita per Country
+    </div>
+    <div id="tt_container">
+    </div>
+    <div id="map_container">
+        <svg id="canvas" viewBox="0 0 1000 800"></svg>
+    </div>
+    <div id="slider_container">
+    <div id="slider">
+    </div>
+    </div>
+    <div id="cont">
+        <svg id="chart"></svg>
+    </div>
+    <script>
+        const countriesJsonFile = "./data/countries2.json";
+        let svg = d3.select("#canvas")
+        let geoJsonFile = "./data/custom.geo.json"
+        //let geoJsonFile = "https://unpkg.com/world-atlas@1.1.4/world/50m.json";
+        let projection = d3.geoEquirectangular() //d3.geoMercator()
+            .scale(200).translate([500, 400])
+
+        // Promise to load the json and other data.
+        Promise.all(
+            [
+                d3.json(geoJsonFile),
+                d3.json(countriesJsonFile)
+            ]
+        ).then(main)
+
+        function loadAllData(countries) {
+            // Load all data files
+            let promises = countries.map(c => {
+                let file = "./data/Wine Consumption Per Capita in " + c["c"] + ".csv"
+                return d3.text(file).then(function(data) {
+                    return d3.csvParse(data.split('\n').slice(2, -5).join('\n'))
+                        .map(row => ({...row, country: c["n"]}))
+                })
+            })
+
+            return Promise.all(promises).then(function(csv) {
+                    return csv.flatMap((data, index) => {
+                        return data.map(row => row);
+                    })
+            }).catch(function(error) {
+                console.log(error);
+            })
+        }
+
+        function main(data) {
+            //let geoData = topojson.feature(data[0], data[0].objects.countries)
+            let geoJson = data[0].features
+            let geoGenerator = d3.geoPath().projection(projection)
+
+            // Load actual data, and update canvas on the map.
+            loadAllData(data[1])
+                .then(initCanvas);
+
+            function initCanvas(consumptionData) {
+                let xExtent = d3.extent(consumptionData, d => +d['Date'])
+                let yExtent = d3.extent(consumptionData.map(d => {
+                    let v = d['Liters of Pure Alcohol']
+                    if (v == "") {
+                        return 0.0;
+                    } else {
+                        return +v;
+                    }
+                }))
+
+                function drawLineChart(name, consData) {
+                    const consByCountry = consData.filter(r => r['country'] === name)
+                    const width = 200;
+                    const height = 120;
+                    const margins = {
+                        top: 10,
+                        bottom: 10,
+                        left: 10,
+                        right: 10
+                    }
+
+                    const xScale = d3.scaleLinear()
+                        .domain(xExtent)
+                        .range([margins.left, width - margins.right])
+                    const yScale = d3.scaleLinear()
+                        .domain(yExtent)
+                        .range([height - margins.bottom, margins.top])
+
+                    const ext = d3.extent(consByCountry, d => +d['Liters of Pure Alcohol'])
+
+                    d3.select("#tt_container")
+                        .append("div")
+                        .attr("id", "tooltip");
+                    d3.select("#tooltip")
+                        .html('<div>' + name
+                            + '</div>')
+                    let tSvg = d3.select("#tooltip")
+                        .append("svg")
+                        .attr("id", "toolTipSvg")
+                        .attr("viewBox", "0 0 200 150")
+                    let canvas = tSvg.append("g").attr("class", "canvas")
+                    canvas.select('*').remove()
+
+                    let linegen = d3.line()
+                        .x(d => xScale(+d['Date']))
+                        .y(d => yScale(+d['Liters of Pure Alcohol']))
+
+                    canvas.append('g')
+                        .append("path")
+                        .attr("d", linegen(consByCountry))
+                        .attr("fill", "none")
+                        .attr("stroke-width", "3")
+                        .attr("stroke", "black")
+                }
+
+                function drawCanvas() {
+                    let mapCanvas = svg.append('g')
+                    mapCanvas.selectAll('path')
+                        .data(geoJson)
+                        .enter()
+                        .append('path')
+                        .attr("d", geoGenerator)
+                        .attr("id", d => countryNameId(d.properties.name))
+                        .attr("fill", "none")
+                        .on("mouseenter", (m, d) => {
+                            drawLineChart(d.properties.name, consumptionData)
+
+                            d3.select('#tooltip')
+                                .style("opacity", .8)
+                                .style("left", (m.clientX +10).toString() + "px")
+                                .style("top", (m.clientY +10).toString() + "px")
+                        })
+                        .on("mouseleave", (_m, _d) => {
+                            d3.select("#tooltip").remove()
+                        })
+                }
+
+                function sliderUpdate(val) {
+                    d3.select("#value").text(val);
+                    updateColor(consumptionData, yExtent, val)
+                }
+
+                const slider = d3.sliderHorizontal()
+                    .min(xExtent[0])
+                    .max(xExtent[1])
+                    .step(1)
+                    .value(xExtent[1])
+                    .width(1000)
+                    .on('onchange', (val) => {
+                        sliderUpdate(val);
+                    })
+
+                d3.select("#slider")
+                    .append('svg')
+                    .attr('width', 1000)
+                    .attr('height', 100)
+                    .append('g')
+                    //.attr('transform', `transform(30, 30)`)
+                    .call(slider)
+
+                drawCanvas();
+                updateColor(consumptionData, yExtent, 2019)
+            }
+
+            function updateColor(consData, yExtent, year) {
+                let colorScale = d3.scaleSqrt()
+                    .domain(yExtent)
+                    .range(["white", "#7B0323"]) // wine red
+                    .interpolate(d3.interpolateCubehelix.gamma(1))
+
+                let consMap = new Map();
+                consData.forEach(r => {
+                    if (+r['Date'] === year) {
+                        consMap.set(countryNameId(r['country']),
+                                r['Liters of Pure Alcohol'])
+                    }
+                })
+
+                consMap.forEach((liter, countryId) => {
+                    d3.select('#' + countryId)
+                        .style("fill", function (d) {
+                            try {
+                                return colorScale(liter);
+                            } catch (error) {
+                                console.log(error);
+                                return "white"
+                            }
+                        })
+                })
+            }
+
+            function countryNameId(name) {
+                let name1 = name.replaceAll(" ", "_")
+                let name2 = name1.replaceAll("'", "_")
+                return "c_" + name2.replaceAll(".", "_")
+            }
+        }
+
+        function handleZoom(e) {
+            d3.select("svg g")
+                .attr('transform', e.transform);
+        }
+
+        let zoom = d3.zoom().on("zoom", handleZoom);
+        svg.call(zoom);
+    </script>
+</body>
+</html>
