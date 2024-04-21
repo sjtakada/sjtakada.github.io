@@ -100,7 +100,7 @@
             })
 
             return Promise.all(promises).then(function(csv) {
-                    return csv.flatMap((data, index) => {
+                    return csv.flatMap((data, _index) => {
                         return data.map(row => row);
                     })
             }).catch(function(error) {
@@ -257,7 +257,7 @@
 
                 consMap.forEach((liter, countryId) => {
                     d3.select('#' + countryId)
-                        .style("fill", function (d) {
+                        .style("fill", function (_d) {
                             try {
                                 return colorScale(liter);
                             } catch (error) {
