@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Long Project</title>
+    <title>Final Project</title>
     <script src="./libs/d3.v7.js"></script>
     <script src="https://unpkg.com/d3-simple-slider"></script>
     <script src="https://unpkg.com/topojson@3"></script>
@@ -21,15 +21,15 @@
             font-size: 28pt;
         }
         #toolTipSvg {
-            width: 200px;
-            height: 150px;
+            width: 250px;
+            height: 200px;
         }
         #tooltip {
             opacity: 0;
             background-color: antiquewhite;
             position: absolute;
-            width: 200px;
-            height: 150px;
+            width: 250px;
+            height: 200px;
         }
         #map_container {
             width: 90vw;
@@ -43,12 +43,12 @@
         #slider_container {
             width: 90vw;
             height: 80vh;
-            align-content: space-evenly;
+            margin: 0 auto;
         }
         #slider {
             width: 100vw;
             height: 100vh;
-            margin-left: 50px;
+            margin: 20px;
             background-color: white;
         }
         path {
@@ -60,7 +60,7 @@
 </head>
 <body>
     <div id="caption">
-        World Wine Consumption per Capita per Country
+        Mapping Per Capita Wine Consumption by Country
     </div>
     <div id="tt_container">
     </div>
@@ -68,8 +68,7 @@
         <svg id="canvas" viewBox="0 0 1000 800"></svg>
     </div>
     <div id="slider_container">
-    <div id="slider">
-    </div>
+        <div id="slider"></div>
     </div>
     <div id="cont">
         <svg id="chart"></svg>
@@ -131,12 +130,12 @@
 
                 function drawLineChart(name, consData) {
                     const consByCountry = consData.filter(r => r['country'] === name)
-                    const width = 200;
-                    const height = 120;
+                    const width = 250;
+                    const height = 170;
                     const margins = {
                         top: 10,
-                        bottom: 10,
-                        left: 10,
+                        bottom: 40,
+                        left: 30,
                         right: 10
                     }
 
@@ -147,7 +146,15 @@
                         .domain(yExtent)
                         .range([height - margins.bottom, margins.top])
 
-                    const ext = d3.extent(consByCountry, d => +d['Liters of Pure Alcohol'])
+                    let linegen = d3.line()
+                        .x(d => xScale(+d['Date']))
+                        .y(d => yScale(+d['Liters of Pure Alcohol']))
+
+                    const xAxis = d3.axisBottom()
+                        .scale(xScale)
+                        .ticks(5)
+                    const yAxis = d3.axisLeft()
+                        .scale(yScale)
 
                     d3.select("#tt_container")
                         .append("div")
@@ -158,13 +165,23 @@
                     let tSvg = d3.select("#tooltip")
                         .append("svg")
                         .attr("id", "toolTipSvg")
-                        .attr("viewBox", "0 0 200 150")
+                        .attr("viewBox", "0 0 250 190")
+                    tSvg.append('g')
+                        .attr('class', 'axis')
+                        .attr("transform", `translate(0, 140)`)
+                        .call(xAxis)
+                        .selectAll("text")
+                        .attr("dx", "-2.1em")
+                        .attr("dy", "-.15em")
+                        .attr("transform", "rotate(-90)")
+
+                    tSvg.append('g')
+                        .attr('class', 'axis')
+                        .attr("transform", `translate(20, 0)`)
+                        .call(yAxis)
+
                     let canvas = tSvg.append("g").attr("class", "canvas")
                     canvas.select('*').remove()
-
-                    let linegen = d3.line()
-                        .x(d => xScale(+d['Date']))
-                        .y(d => yScale(+d['Liters of Pure Alcohol']))
 
                     canvas.append('g')
                         .append("path")
@@ -207,6 +224,7 @@
                     .step(1)
                     .value(xExtent[1])
                     .width(1000)
+                    .height(50)
                     .on('onchange', (val) => {
                         sliderUpdate(val);
                     })
@@ -216,7 +234,7 @@
                     .attr('width', 1000)
                     .attr('height', 100)
                     .append('g')
-                    //.attr('transform', `transform(30, 30)`)
+                    .attr('transform', `translate(20, 10)`)
                     .call(slider)
 
                 drawCanvas();
